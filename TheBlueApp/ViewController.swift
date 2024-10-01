@@ -1,85 +1,82 @@
-//
-//  ViewController.swift
-//  TheBlueApp
-//
-//  Created by JSenen on 1/10/24.
-//
-
 import UIKit
 import CoreBluetooth
 
-// La clase ViewController implementa los protocolos CBCentralManagerDelegate y CBPeripheralDelegate
-// para manejar eventos de Bluetooth, como la búsqueda de dispositivos y la conexión a ellos.
-class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDelegate {
+// Asegúrate de que el ViewController ahora sea el delegado y datasource de UITableView
+class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDelegate, UITableViewDelegate, UITableViewDataSource {
     
-    // Propiedades:
-    var centralManager: CBCentralManager!  // El objeto CBCentralManager gestiona la interacción con Bluetooth.
-    var myPeripheral: CBPeripheral!        // Una referencia al periférico BLE con el que nos conectamos.
+    @IBOutlet weak var tableView: UITableView!  // Conexión de la tabla en el Storyboard
     
-    // Este método se llama cuando el estado del Bluetooth cambia (por ejemplo, cuando se enciende o apaga).
+    var centralManager: CBCentralManager!       // Manejador central del Bluetooth
+    var peripherals: [(peripheral: CBPeripheral, rssi: NSNumber)] = []  // Lista de periféricos descubiertos con su RSSI
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // Registrar una celda reutilizable con el identificador "PeripheralCell"
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "PeripheralCell")
+        
+        // Configurar delegado y datasource de la UITableView
+        tableView.delegate = self
+        tableView.dataSource = self
+        
+        centralManager = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    
+    // Método requerido para UITableViewDataSource: número de filas en la tabla
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        print("Número de filas: \(peripherals.count)")
+        return peripherals.count  // El número de dispositivos descubiertos
+    }
+    
+    // Método requerido para UITableViewDataSource: configuración de la celda
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        print("Configurando celda para fila \(indexPath.row)")
+        let cell = tableView.dequeueReusableCell(withIdentifier: "PeripheralCell", for: indexPath)
+        
+        let peripheral = peripherals[indexPath.row].peripheral
+        let rssi = peripherals[indexPath.row].rssi
+        
+        // Mostrar solo los periféricos con nombre
+            if let peripheralName = peripheral.name {
+                cell.textLabel?.text = peripheralName
+                cell.detailTextLabel?.text = "RSSI: \(rssi)"
+            } else {
+                // Si no tiene nombre, no mostrar nada en la celda
+                cell.textLabel?.text = ""
+                cell.detailTextLabel?.text = ""
+            }
+            
+            return cell
+    }
+    
+    // Método requerido para actualizar el estado de Bluetooth
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        // Verifica si el estado de Bluetooth está encendido
         if central.state == CBManagerState.poweredOn {
-            print("BLE powered on")  // Imprime un mensaje cuando el Bluetooth está encendido.
-            // Comienza a escanear periféricos BLE sin filtrar por un servicio específico.
-            central.scanForPeripherals(withServices: nil, options: nil)
-        }
-        else {
-            // Si el estado de Bluetooth no es poweredOn, imprime un mensaje de error.
+            print("BLE powered on")
+            central.scanForPeripherals(withServices: nil, options: nil)  // Comenzar escaneo
+        } else {
             print("Something wrong with BLE")
         }
     }
     
+    // Método para manejar dispositivos descubiertos
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        // Solo añadir los dispositivos que tienen un nombre
         if let pname = peripheral.name {
             print("Dispositivo descubierto: \(pname)")
-        } else {
-            print("Dispositivo descubierto sin nombre")
-        }
-        
-        print("RSSI: \(RSSI)")
-        
-        // Mostrar más información desde advertisementData
-        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String {
-            print("Nombre local: \(localName)")
-        }
-        
-        if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
-            print("Datos del fabricante: \(manufacturerData)")
-        }
-        
-        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-            print("UUIDs de servicios: \(serviceUUIDs)")
-        }
-        
-        if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data] {
-            print("Datos del servicio: \(serviceData)")
-        }
-        
-        if let txPowerLevel = advertisementData[CBAdvertisementDataTxPowerLevelKey] as? NSNumber {
-            print("Nivel de potencia de transmisión: \(txPowerLevel)")
-        }
-        
-        if let isConnectable = advertisementData[CBAdvertisementDataIsConnectable] as? Bool {
-            print("Conectable: \(isConnectable ? "Sí" : "No")")
-        }
-        
-        if let solicitedServiceUUIDs = advertisementData[CBAdvertisementDataSolicitedServiceUUIDsKey] as? [CBUUID] {
-            print("UUIDs de servicios solicitados: \(solicitedServiceUUIDs)")
+            
+            // Añadir los dispositivos descubiertos a la lista si no están ya incluidos
+            if !peripherals.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
+                peripherals.append((peripheral: peripheral, rssi: RSSI))
+                
+                // Actualizar la tabla en el hilo principal
+                DispatchQueue.main.async {
+                    self.tableView.reloadData()
+                }
+            }
         }
     }
+    
 
-    
-    // Este método se llama cuando se conecta a un periférico BLE.
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        // Al conectarse a un periférico, inicia la búsqueda de servicios ofrecidos por el periférico.
-        self.myPeripheral.discoverServices(nil)  // Se pasa nil para descubrir todos los servicios.
-    }
-    
-    // El método viewDidLoad se llama una vez que la vista se ha cargado. Aquí inicializamos el CBCentralManager.
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        // Inicializa el centralManager y configura el ViewController como su delegado para manejar eventos BLE.
-        centralManager = CBCentralManager(delegate: self, queue: nil)
-    }
 }
