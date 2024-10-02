@@ -6,6 +6,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     @IBOutlet weak var tableView: UITableView!  // Conexión de la tabla en el Storyboard
     
+    
     var centralManager: CBCentralManager!       // Manejador central del Bluetooth
     var peripherals: [(peripheral: CBPeripheral, rssi: NSNumber)] = []  // Lista de periféricos descubiertos con su RSSI
     
