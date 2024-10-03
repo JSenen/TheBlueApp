@@ -79,5 +79,24 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
     
+    //Metodo para seleccionar un dispositivo
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let selectedPeripheral = peripherals[indexPath.row].peripheral
+        
+        // Aquí lanzamos la pantalla de conexión, pasando el periférico seleccionado
+        performSegue(withIdentifier: "goToConnection", sender: selectedPeripheral)
+    }
+   
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if segue.identifier == "goToConnection" {
+            if let connectionVC = segue.destination as? ConnectionViewController,
+               let selectedPeripheral = sender as? CBPeripheral {
+                connectionVC.peripheral = selectedPeripheral
+                connectionVC.centralManager = centralManager  // Pasar también el centralManager
+            }
+        }
+        
+    }
 
 }
+
